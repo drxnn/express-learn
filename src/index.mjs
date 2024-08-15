@@ -1,4 +1,13 @@
 import express from "express";
+import {
+  query,
+  validationResult,
+  body,
+  matchedData,
+  checkSchema,
+} from "express-validator";
+
+import { validateNewCreatedUser } from "./utils/validationSchemas.mjs";
 
 const app = express();
 app.use(express.json());
@@ -36,27 +45,47 @@ app.get("/", (req, res) => {
   res.status(201).send({ msg: "hello" });
 });
 
-app.get("/api/users", (req, res) => {
-  console.log(req.query);
-  const {
-    query: { filter, value },
-  } = req;
+app.get(
+  "/api/users",
+  query("filter")
+    .isString()
+    .isLength({ min: 2, max: 10 })
+    .withMessage("Length must be 2-10 characters")
+    .notEmpty()
+    .withMessage("must not be empty"),
+  (req, res) => {
+    console.log(req.query);
+    const result = validationResult(req);
+    console.log(result);
+    const {
+      query: { filter, value },
+    } = req;
 
-  if (filter && value)
-    return res.send(mockUsers.filter((u) => u[filter].includes(value)));
+    if (filter && value)
+      return res.send(mockUsers.filter((u) => u[filter].includes(value)));
 
-  return res.send(mockUsers);
-});
+    return res.send(mockUsers);
+  }
+);
 
-app.post("/api/users", (req, res) => {
+app.post("/api/users", checkSchema(validateNewCreatedUser), (req, res) => {
+  const result = validationResult(req);
+  console.log(result);
+  if (!result.isEmpty())
+    return res.status(400).send({ errors: result.array() });
+
   const {
     body: { username, name },
   } = req;
+
+  const validatedData = matchedData(req);
+
+  console.log("data has been matched:", validatedData);
+
   if (username && name) {
     const userToAdd = {
       id: mockUsers.length + 1,
-      username,
-      name,
+      ...validatedData,
     };
     mockUsers.push(userToAdd);
     return res.status(201).send(userToAdd);
@@ -64,13 +93,10 @@ app.post("/api/users", (req, res) => {
   console.log(mockUsers);
 });
 
-app.get("/api/users/:id", (req, res) => {
-  console.log(req.params);
-  const parsedId = parseInt(req.params.id);
-  console.log(parsedId);
-  if (isNaN(parsedId)) return res.status(400).end("bad request");
+app.get("/api/users/:id", resolveIndexByUserId, (req, res) => {
+  const { userIndex } = req;
 
-  const findUser = mockUsers.find((user) => user.id === parsedId);
+  const findUser = mockUsers[userIndex];
   if (!findUser) return res.status(404).send("user doesnt exist");
   return res.send(findUser);
 });
