@@ -4,7 +4,7 @@ import { loggingMiddleware } from "./utils/middleware.mjs";
 import cookieParser from "cookie-parser";
 import session from "express-session";
 import {
-  query,
+  body,
   validationResult,
   checkSchema,
   matchedData,
@@ -12,6 +12,7 @@ import {
 
 import routes from "./routes/index.mjs";
 import { mockUsers } from "./utils/constants.mjs";
+import { validateUserThatWantsToLogIn } from "./utils/validationSchemas.mjs";
 const app = express();
 app.use(express.json());
 app.use(cookieParser());
@@ -38,10 +39,15 @@ app.get("/", (req, res) => {
   res.status(201).send({ msg: "hello" });
 });
 
-app.post("/api/auth", (req, res) => {
+app.post("/api/auth", checkSchema(validateUserThatWantsToLogIn), (req, res) => {
+  const result = validationResult(req);
+  console.log(result);
   const {
     body: { username, password },
   } = req;
+  const validatedData = matchedData(req);
+
+  console.log("data has been matched:", validatedData);
   const findUser = mockUsers.find((u) => u.username === username);
   if (!findUser || findUser.password !== password)
     return res.status(401).send({ error: "unauthenticated" });
